@@ -86,8 +86,7 @@ class TwoLayerNet(object):
     
     # If the targets are not given then jump out, we're done
     if y is None:
-      W1 = W1[1:, :]
-      W2 = W2[1:, :]
+      W1, W2 = W1[1:], W2[1:]
       return scores
 
     # Compute the loss
@@ -103,7 +102,7 @@ class TwoLayerNet(object):
     scores /= np.sum(scores, axis=1)[:, np.newaxis]
     loss = -np.sum(np.log(scores[list(range(N)), y]))
     loss /= N
-    loss += reg * (np.sum(W1 * W1) + np.sum(W2 * W2))
+    loss += reg * (np.sum(W1[1:] * W1[1:]) + np.sum(W2[1:] * W2[1:]))
     #############################################################################
     #                              END OF YOUR CODE                             #
     #############################################################################
@@ -118,11 +117,11 @@ class TwoLayerNet(object):
     scores[list(range(N)), y] -= 1
     scores /= N
     dW2 = h1.T.dot(scores)
-    grads['W2'], grads['b2'] = dW2[1:, :], dW2[0]
+    grads['W2'], grads['b2'] = dW2[1:], dW2[0]
     dH1 = scores.dot(W2.T)[:, 1:]
     dW1 = X_new.T.dot(dH1 * (z1 > 0))
-    grads['W1'], grads['b1'] = dW1[1:, :], dW1[0]
-    W1, W2 = W1[1:, :], W2[1:, :]
+    grads['W1'], grads['b1'] = dW1[1:], dW1[0]
+    W1, W2 = W1[1:], W2[1:]
     grads['W1'] += 2 * reg * W1
     grads['W2'] += 2 * reg * W2
     #############################################################################
