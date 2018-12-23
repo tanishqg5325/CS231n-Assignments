@@ -163,7 +163,7 @@ def batchnorm_forward(x, gamma, beta, bn_param):
     out, cache = None, None
     if mode == 'train':
         #######################################################################
-        # TODO: Implement the training-time forward pass for batch norm.      #
+        # Implement the training-time forward pass for batch norm.            #
         # Use minibatch statistics to compute the mean and variance, use      #
         # these statistics to normalize the incoming data, and scale and      #
         # shift the normalized data using gamma and beta.                     #
@@ -183,18 +183,26 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         # Referencing the original paper (https://arxiv.org/abs/1502.03167)   #
         # might prove to be helpful.                                          #
         #######################################################################
-        pass
+        sample_mean = np.mean(x, axis=0)
+        sample_var = np.var(x, axis=0)
+        tmp = (x - sample_mean) / np.sqrt(sample_var + eps)
+        out = gamma * tmp + beta
+        running_mean = momentum * running_mean + (1 - momentum) * sample_mean
+        running_var = momentum * running_var + (1 - momentum) * sample_var
+        
+        cache = (x, sample_mean, sample_var, tmp, eps, gamma)
         #######################################################################
         #                           END OF YOUR CODE                          #
         #######################################################################
     elif mode == 'test':
         #######################################################################
-        # TODO: Implement the test-time forward pass for batch normalization. #
+        # Implement the test-time forward pass for batch normalization.       #
         # Use the running mean and variance to normalize the incoming data,   #
         # then scale and shift the normalized data using gamma and beta.      #
         # Store the result in the out variable.                               #
         #######################################################################
-        pass
+        out = (x - running_mean) / np.sqrt(running_var + eps)
+        out = gamma * out + beta
         #######################################################################
         #                          END OF YOUR CODE                           #
         #######################################################################
@@ -225,14 +233,28 @@ def batchnorm_backward(dout, cache):
     - dgamma: Gradient with respect to scale parameter gamma, of shape (D,)
     - dbeta: Gradient with respect to shift parameter beta, of shape (D,)
     """
+    x, sample_mean, sample_var, tmp, eps, gamma = cache
     dx, dgamma, dbeta = None, None, None
+    N, D = x.shape
     ###########################################################################
-    # TODO: Implement the backward pass for batch normalization. Store the    #
+    # Implement the backward pass for batch normalization. Store the          #
     # results in the dx, dgamma, and dbeta variables.                         #
     # Referencing the original paper (https://arxiv.org/abs/1502.03167)       #
     # might prove to be helpful.                                              #
     ###########################################################################
-    pass
+    dbeta = np.sum(dout, axis=0)
+    dgamma = np.sum(tmp * dout, axis=0)
+    dtmp = gamma * dout
+    divar = np.sum(dtmp * (x - sample_mean), axis=0)
+    dxmu1 = dtmp / np.sqrt(sample_var + eps)
+    dsqrtvar = - divar / (sample_var + eps)
+    dvar = 0.5 * dsqrtvar / np.sqrt(sample_var + eps)
+    dsq = np.ones(x.shape) * dvar / N
+    dxmu2 = 2 * (x - sample_mean) * dsq
+    dx1 = dxmu1 + dxmu2
+    dmu = - np.sum(dx1, axis=0)
+    dx2 = np.ones(x.shape) * dmu / N
+    dx = dx1 + dx2
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -254,16 +276,21 @@ def batchnorm_backward_alt(dout, cache):
 
     Inputs / outputs: Same as batchnorm_backward
     """
+    x, sample_mean, sample_var, tmp, eps, gamma = cache
     dx, dgamma, dbeta = None, None, None
+    N, D = x.shape
     ###########################################################################
-    # TODO: Implement the backward pass for batch normalization. Store the    #
+    # Implement the backward pass for batch normalization. Store the          #
     # results in the dx, dgamma, and dbeta variables.                         #
     #                                                                         #
     # After computing the gradient with respect to the centered inputs, you   #
     # should be able to compute gradients with respect to the inputs in a     #
     # single statement; our implementation fits on a single 80-character line.#
     ###########################################################################
-    pass
+    dbeta = np.sum(dout, axis=0)
+    dgamma = np.sum(tmp * dout, axis=0)
+    dtmp = gamma * dout
+    dx = (N * dtmp - np.sum(dtmp, axis=0) - tmp * np.sum(dtmp * tmp, axis=0)) / (N * np.sqrt(sample_var + eps))
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -296,7 +323,7 @@ def layernorm_forward(x, gamma, beta, ln_param):
     out, cache = None, None
     eps = ln_param.get('eps', 1e-5)
     ###########################################################################
-    # TODO: Implement the training-time forward pass for layer norm.          #
+    # Implement the training-time forward pass for layer norm.                #
     # Normalize the incoming data, and scale and  shift the normalized data   #
     #  using gamma and beta.                                                  #
     # HINT: this can be done by slightly modifying your training-time         #
@@ -305,7 +332,13 @@ def layernorm_forward(x, gamma, beta, ln_param):
     # transformations you could perform, that would enable you to copy over   #
     # the batch norm code and leave it almost unchanged?                      #
     ###########################################################################
-    pass
+    x = x.T
+    sample_mean = np.mean(x, axis=0)
+    sample_var = np.var(x, axis=0)
+    tmp = (x - sample_mean) / np.sqrt(sample_var + eps)
+    x, tmp = x.T, tmp.T
+    out = gamma * tmp + beta
+    cache = (x, sample_var, tmp, eps, gamma)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -328,15 +361,22 @@ def layernorm_backward(dout, cache):
     - dgamma: Gradient with respect to scale parameter gamma, of shape (D,)
     - dbeta: Gradient with respect to shift parameter beta, of shape (D,)
     """
+    x, sample_var, tmp, eps, gamma = cache
     dx, dgamma, dbeta = None, None, None
+    N, D = x.shape
     ###########################################################################
-    # TODO: Implement the backward pass for layer norm.                       #
+    # Implement the backward pass for layer norm.                             #
     #                                                                         #
     # HINT: this can be done by slightly modifying your training-time         #
     # implementation of batch normalization. The hints to the forward pass    #
     # still apply!                                                            #
     ###########################################################################
-    pass
+    dbeta = np.sum(dout, axis=0)
+    dgamma = np.sum(tmp * dout, axis=0)
+    dtmp = gamma * dout
+    tmp, dtmp = tmp.T, dtmp.T
+    dx = (D * dtmp - np.sum(dtmp, axis=0) - tmp * np.sum(dtmp * tmp, axis=0)) / (D * np.sqrt(sample_var + eps))
+    dx, tmp, dtmp = dx.T, tmp.T, dtmp.T
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
